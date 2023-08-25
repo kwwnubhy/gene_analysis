@@ -62,10 +62,10 @@ gsm_names <- rownames(meta_data)
 # 파일 모아부르기; 디렉토리명이 제대로 지정되었는지 확인이 우선.
 ```{r}
 # 파일이 있는 디렉토리 경로 지정
-directory_path <- "./RNA_seq/raw/GSE135705_unzip"
+directory_path <- "C:/Users/kwwnu/Desktop/GAS6_confirm/RNA_seq/raw/GSE135705_unzip"
 
 # 디렉토리 내의 txt 파일 목록 가져오기
-txt_files <- list.files(directory_path, pattern = "\\.txt$", full.names = TRUE)
+txt_files <- list.files(directory_path, full.names = TRUE)
 
 # 데이터프레임을 저장할 리스트 생성
 data_frames <- list()
@@ -175,11 +175,8 @@ print(head(HFSC_df))
 
 
 
-# 타이틀 변경해주기. 우선 타이틀 만들어주기.
+# 타이틀 변경해주기. 우선 타이틀 매칭 데이터를 담은 df 생성.
 ```{r}
-head(DP_df)
-head(HFSC_df)
-head(meta_data)
 title_match <- meta_data[,1:2]
 title_match
 title_match$title <- substr(title_match$title, 1, nchar(title_match$title) - 12)
@@ -223,7 +220,9 @@ print(head(HFSC_df))
 ```
 #HFSC의 데이터 일부가 int임을 확인. 숫자로 변경해준다.
 ```{r}
+rownameofHFSC <- rownames(HFSC_df)
 HFSC_df <- as.data.frame(lapply(HFSC_df, as.integer))
+rownames(HFSC_df) <- rownameofHFSC
 ```
 
 ```{r}
@@ -266,20 +265,39 @@ heatmap_dend <- Heatmap(cor_matrix, name = "Correlation",
 # 결과 출력
 print(heatmap_dend)
 ```
+#
+```{r}
+## 'purple' sham, 'blue' ADX,'red' ADX+CORT,'khaki' Control,'green' GR_KO
+data_names <- c("Sham_HFSC", "Sham_HFSC.1", "ADX_HFSC", "ADX_HFSC.1", "ADX.CORT_HFSC", 
+                "ADX.CORT_HFSC.1", "Control_HFSC", "Control_HFSC.1", "GR_KO_HFSC", "GR_KO_HFSC.1")
+data_colors <- c('purple','purple','blue', 'blue','red', 'red', 'khaki','khaki','green', 'green')
+
+HFSC.pca <- prcomp(t(na.omit(HFSC_df)))
+HFSC_pca_data <- as.data.frame(HFSC.pca$x[, c("PC1", "PC2")])
+
+# 자료 이름과 색상 매칭
+HFSC_pca_data$Names <- data_names
+HFSC_pca_data$Colors <- data_colors
+
+# 산점도 그래프 그리기
+ggplot(HFSC_pca_data, aes(x = PC1, y = PC2, color = Colors)) +
+  geom_point(size = 4) +
+  scale_color_identity() +  # 색상 매칭 유지
+  labs(x = "PC1", y = "PC2", title = "PCA Result") +
+  theme_minimal()
+```
+
 
 # 논문에서 DESeq2를 이용한 DEG 분석 시행하였으므로, 여기서도 DESeq2이용
+##    하기 전에 손으로 먼저 분석해보려구요...
 ```{r}
-
-```
-```{r}
-# tesing git
-print('testing commit')
-print('testing commit1')
-```
-
-```{r}
-# last test of git
-print('test push')
+get_DEG <- function(using_data, control, test){
+  control_df <- using_data[,control]
+  control_df$mean <- mean(control_df[,1], control_df[,2])
+  test_df <- using_data[,test]
+  test_df$mean <- mean(test_df[,1], test_df[,2])
+  fold_df <- test_df$mean / control_df$mean
+}
 ```
 
 
