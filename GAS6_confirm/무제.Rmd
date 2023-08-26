@@ -1,0 +1,264 @@
+---
+title: "settings_do"
+output: pdf_document
+date: "2023-08-21"
+---
+# 해당 마크다운을 실행한 결과를 청크 내에 표시할 지 결정하는 코드입니다.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+
+## Install library
+# 필요한 라이브러리 목록 넣어주세요. 
+```{r}
+need_libraries <- c('GEOquery','dplyr','tidyr','ggplot2', 'reshape2', 'dendextend', 'cluster', 'ComplexHeatmap')
+```
+
+
+# 다음 chunk 그대로 시행. 오류가 뜨면 윗부분에서 라이브러리명 잘못 적은건 아닌지 체크!
+```{r}
+# 설치되지 않은 라이브러리 목록 초기화
+not_installed <- character(0)  
+
+for (lib in need_libraries) {
+  if (!requireNamespace(lib, quietly = TRUE)) {  # 라이브러리가 설치되어 있는지 확인
+    if (grepl("is not available", tryCatch(install.packages(lib), error = function(e) conditionMessage(e)))) {
+      not_installed <- c(not_installed, lib)  # 설치되지 않은 경우 목록에 추가
+    } else {
+      if (grepl("package ‘(.+)’ is not available", conditionMessage(e), perl = TRUE)) {
+        not_installed <- c(not_installed, sub("package ‘(.+)’ is not available", "\\1", conditionMessage(e)))
+      }
+    }
+  }
+}
+
+if (length(not_installed) > 0) {
+  for (lib in not_installed) {
+    if (grepl("is not available", tryCatch(BiocManager::install(lib), error = function(e) conditionMessage(e)))) {
+      cat(paste("Unable to install", lib, "\n"))
+    }
+  }
+}
+
+print('설치 완료')
+```
+
+# 라이브러리 불러오기.
+```{r, echo=FALSE}
+lapply(need_libraries, library, character.only = TRUE)
+```
+
+
+# RNA seq analaysis
+## Loading data
+```{r}
+gse_num <- 'GSE135705'
+using_matrix <- getGEO(gse_num, GSEMatrix = TRUE)
+```
+# 메모중
+```{r}
+meta_data <- data.frame(using_matrix$GSE135705_series_matrix.txt.gz@phenoData@data)
+gsm_names <- rownames(meta_data)
+```
+
+# 파일 모아부르기; 디렉토
+```{r}
+# 파일이 있는 디렉토리 경로 지정
+directory_path <- "/Users/iminju/Desktop/GAS6_confirm/RNA_seq/raw/GSE135705_unzip"
+
+# 디렉토리 내의 txt 파일 목록 가져오기
+txt_files <- list.files(directory_path, pattern = "\\.txt$", full.names = TRUE)
+
+# 데이터프레임을 저장할 리스트 생성
+data_frames <- list()
+
+# 반복문을 통해 각 txt 파일 읽어와 데이터프레임으로 변환하고 리스트에 추가
+for (file_path in txt_files) {
+  # 파일명에서 확장자 및 경로 제외한 이름 추출
+  file_name <- tools::file_path_sans_ext(basename(file_path))
+  
+  # 파일명을 10글자까지만 잘라서 변수명 생성
+  var_name <- substr(file_name, 1, 10)
+  
+  # 파일 읽기
+  file_data <- read.table(file_path, header = TRUE, sep = "\t")  # 필요한 인자 설정
+  
+  # 데이터프레임에 변수명을 변수명으로 추가하고 리스트에 저장
+  data_frames[[var_name]] <- file_data
+}
+```
+
+
+# 백업데이터 남겨두기.
+```{r}
+data_frames <- data_bu
+```
+
+# DP와 HFSC의 데이터 형태가 다름. 잘라서 보관
+```{r}
+DP_data <- data_frames[1:8]
+HFSC_data <- data_frames[9:18]
+```
+
+# DP 데이터의 첫 열은 앙상블 아이디임을 확인. 따라서 행이름을 앙상블아이디로 이용하도록 한다.
+```{r}
+for (i in seq(1,length(DP_data))){
+  rownames(DP_data[[i]]) <- DP_data[[i]]$Name
+  DP_data[[i]] <- subset(DP_data[[i]], select = -Name)
+  colnames(DP_data[[i]]) <- c('Exp')
+}
+```
+
+
+# HFSC 데이터에서 첫 행이 열의 이름으로 되어있는 두 데이터프레임 확인.
+```{r}
+# 첫 행을 열 이름으로 설정
+colnames(HFSC_data[[5]]) <- HFSC_data[[5]][1, ]
+
+# 첫 행 제거
+HFSC_data[[5]] <- HFSC_data[[5]][-1, ]
+# 첫 행을 열 이름으로 설정
+colnames(HFSC_data[[6]]) <- HFSC_data[[6]][1, ]
+
+# 첫 행 제거
+HFSC_data[[6]] <- HFSC_data[[6]][-1, ]
+```
+
+# HFSC에서도 Geneid를 행 이름으로 이용하고자 하였으나, 중복된 Geneid가 존재하는 것을 확인. 따라서 전처리 후 이용.
+```{r}
+for (i in seq(1, length(HFSC_data))){
+  HFSC_data[[i]] <- HFSC_data[[i]][!(HFSC_data[[i]]$Geneid %in% c("1-Mar", "2-Mar")), ]
+}
+```
+
+
+```{r}
+for (i in seq(1, length(HFSC_data))){
+  rownames(HFSC_data[[i]]) <- HFSC_data[[i]]$Geneid
+  HFSC_data[[i]] <- subset(HFSC_data[[i]], select = -Geneid)
+  colnames(HFSC_data[[i]])[ncol(HFSC_data[[i]])] <- c('Exp')
+}
+```
+
+# DP와 HFSC에서 id와 exp만을 모아서 새로운 데이터프레임 형성
+```{r}
+DP_df <- DP_data[[1]]
+for (i in seq(2, length(DP_data))){
+  DP_df <- merge(DP_df, DP_data[[i]], by = "row.names", all = TRUE)
+  rownames(DP_df) <- DP_df$Row.names
+  DP_df <- DP_df[, -which(names(DP_df) == "Row.names")]
+  print(head(DP_df))
+}
+colnames(DP_df) <- names(DP_data)
+DP_df <- DP_df[rownames(DP_data[[1]]),]
+```
+
+```{r}
+HFSC_df <- data.frame(HFSC_data[[1]]$Exp, row.names = rownames(HFSC_data[[1]]))
+for (i in seq(2, length(HFSC_data))){
+  adding_df <- data.frame(HFSC_data[[i]]$Exp, row.names = rownames(HFSC_data[[i]]))
+  HFSC_df <- merge(HFSC_df, adding_df, by = "row.names", all = TRUE)
+  rownames(HFSC_df) <- HFSC_df$Row.names
+  HFSC_df <- HFSC_df[, -which(names(HFSC_df) == "Row.names")]
+  print(head(HFSC_df))
+}
+colnames(HFSC_df) <- names(HFSC_data)
+HFSC_df <- HFSC_df[rownames(HFSC_data[[1]]),]
+```
+
+# 
+```{r}
+head(DP_df)
+head(HFSC_df)
+head(meta_data)
+title_match <- meta_data[,1:2]
+title_match
+title_match$title <- substr(title_match$title, 1, nchar(title_match$title) - 12)
+print(title_match)
+```
+
+```{r}
+# DP_df의 열 이름을 교체하는 작업
+for (col_name in colnames(DP_df)) {
+  accession_value <- col_name
+  
+  # title_match에서 accession 값에 해당하는 title 가져오기
+  matching_row <- title_match[title_match$geo_accession == accession_value, ]
+  
+  # 만약 title_match에서 매칭되는 행이 있다면 열 이름 교체
+  if (nrow(matching_row) > 0) {
+    new_col_name <- as.character(matching_row$title)
+    colnames(DP_df)[colnames(DP_df) == col_name] <- new_col_name
+  }
+}
+
+# 결과 확인
+print(head(DP_df))
+
+# HFSC_df의 열 이름을 교체하는 작업
+for (col_name in colnames(HFSC_df)) {
+  accession_value <- col_name
+  
+  # title_match에서 accession 값에 해당하는 title 가져오기
+  matching_row <- title_match[title_match$geo_accession == accession_value, ]
+  
+  # 만약 title_match에서 매칭되는 행이 있다면 열 이름 교체
+  if (nrow(matching_row) > 0) {
+    new_col_name <- as.character(matching_row$title)
+    colnames(HFSC_df)[colnames(HFSC_df) == col_name] <- new_col_name
+  }
+}
+
+# 결과 확인
+print(head(HFSC_df))
+```
+
+```{r}
+# 피어슨 상관계수 행렬 계산
+cor_matrix <- cor(HFSC_df, method = "pearson", use = "pairwise.complete.obs")
+
+# 계층적 군집화 수행
+hc <- hclust(as.dist(1 - cor_matrix))
+dend <- as.dendrogram(hc)
+
+color_palette <- scale_color_continuous_sequential(palette='BluGrn')
+
+# 히트맵 및 덴드로그램 함께 시각화
+heatmap_dend <- Heatmap(cor_matrix, name = "Correlation",
+                        show_row_dend = TRUE, show_column_dend = TRUE,
+                        col = colorRampPalette(c("white", "#0C1E5A"))(100))  # 청록색부터 흰색으로 설정
+
+
+# 결과 출력
+print(heatmap_dend)
+```
+```{r}
+# 피어슨 상관계수 행렬 계산
+cor_matrix <- cor(DP_df, method = "pearson", use = "pairwise.complete.obs")
+
+# 계층적 군집화 수행
+hc <- hclust(as.dist(1 - cor_matrix))
+dend <- as.dendrogram(hc)
+
+color_palette <- scale_color_continuous_sequential(palette='BluGrn')
+
+# 히트맵 및 덴드로그램 함께 시각화
+heatmap_dend <- Heatmap(cor_matrix, name = "Correlation",
+                        show_row_dend = TRUE, show_column_dend = TRUE,
+                        col = colorRampPalette(c("white", "#0C1E5A"))(100))  # 청록색부터 흰색으로 설정
+
+
+# 결과 출력
+print(heatmap_dend)
+```
