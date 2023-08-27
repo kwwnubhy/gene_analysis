@@ -62,7 +62,7 @@ gsm_names <- rownames(meta_data)
 # 파일 모아부르기; 디렉토리명이 제대로 지정되었는지 확인이 우선.
 ```{r}
 # 파일이 있는 디렉토리 경로 지정
-directory_path <- "C:/Users/kwwnu/Desktop/GAS6_confirm/RNA_seq/raw/GSE135705_unzip"
+directory_path <- "./GAS6_confirm/RNA_seq/raw/GSE135705_unzip"
 
 # 디렉토리 내의 txt 파일 목록 가져오기
 txt_files <- list.files(directory_path, full.names = TRUE)
@@ -176,48 +176,50 @@ print(head(HFSC_df))
 
 
 # 타이틀 변경해주기. 우선 타이틀 매칭 데이터를 담은 df 생성.
-```{r}
-title_match <- meta_data[,1:2]
-title_match
-title_match$title <- substr(title_match$title, 1, nchar(title_match$title) - 12)
-print(title_match)
-```
+# ```{r}
+# title_match <- meta_data[,1:2]
+# title_match
+# title_match$title <- substr(title_match$title, 1, nchar(title_match$title) - 12)
+# print(title_match)
+# ```
 
-```{r}
-# DP_df의 열 이름을 교체하는 작업
-for (col_name in colnames(DP_df)) {
-  accession_value <- col_name
-  
-  # title_match에서 accession 값에 해당하는 title 가져오기
-  matching_row <- title_match[title_match$geo_accession == accession_value, ]
-  
-  # 만약 title_match에서 매칭되는 행이 있다면 열 이름 교체
-  if (nrow(matching_row) > 0) {
-    new_col_name <- as.character(matching_row$title)
-    colnames(DP_df)[colnames(DP_df) == col_name] <- new_col_name
-  }
-}
+# ```{r}
+# # DP_df의 열 이름을 교체하는 작업
+# for (col_name in colnames(DP_df)) {
+#   accession_value <- col_name
+# 
+#   # title_match에서 accession 값에 해당하는 title 가져오기
+#   matching_row <- title_match[title_match$geo_accession == accession_value, ]
+# 
+#   # 만약 title_match에서 매칭되는 행이 있다면 열 이름 교체
+#   if (nrow(matching_row) > 0) {
+#     new_col_name <- as.character(matching_row$title)
+#     colnames(DP_df)[colnames(DP_df) == col_name] <- new_col_name
+#   }
+# }
+# 
+# # 결과 확인
+# print(head(DP_df))
+# 
+# # HFSC_df의 열 이름을 교체하는 작업
+# for (col_name in colnames(HFSC_df)) {
+#   accession_value <- col_name
+# 
+#   # title_match에서 accession 값에 해당하는 title 가져오기
+#   matching_row <- title_match[title_match$geo_accession == accession_value, ]
+# 
+#   # 만약 title_match에서 매칭되는 행이 있다면 열 이름 교체
+#   if (nrow(matching_row) > 0) {
+#     new_col_name <- as.character(matching_row$title)
+#     colnames(HFSC_df)[colnames(HFSC_df) == col_name] <- new_col_name
+#   }
+# }
+# 
+# # 결과 확인
+# print(head(HFSC_df))
+# ```
 
-# 결과 확인
-print(head(DP_df))
 
-# HFSC_df의 열 이름을 교체하는 작업
-for (col_name in colnames(HFSC_df)) {
-  accession_value <- col_name
-  
-  # title_match에서 accession 값에 해당하는 title 가져오기
-  matching_row <- title_match[title_match$geo_accession == accession_value, ]
-  
-  # 만약 title_match에서 매칭되는 행이 있다면 열 이름 교체
-  if (nrow(matching_row) > 0) {
-    new_col_name <- as.character(matching_row$title)
-    colnames(HFSC_df)[colnames(HFSC_df) == col_name] <- new_col_name
-  }
-}
-
-# 결과 확인
-print(head(HFSC_df))
-```
 #HFSC의 데이터 일부가 int임을 확인. 숫자로 변경해준다.
 ```{r}
 rownameofHFSC <- rownames(HFSC_df)
@@ -289,15 +291,48 @@ ggplot(HFSC_pca_data, aes(x = PC1, y = PC2, color = Colors)) +
 
 
 # 논문에서 DESeq2를 이용한 DEG 분석 시행하였으므로, 여기서도 DESeq2이용
-##    하기 전에 손으로 먼저 분석해보려구요...
+## dds; DESeqDataSetFromMatrix
+# count data의 1열이 앙상블 아이디와 같은 형태이므로 다시 HFSC, DP df를 복구해줍니다.
+
 ```{r}
-get_DEG <- function(using_data, control, test){
-  control_df <- using_data[,control]
-  control_df$mean <- mean(control_df[,1], control_df[,2])
-  test_df <- using_data[,test]
-  test_df$mean <- mean(test_df[,1], test_df[,2])
-  fold_df <- test_df$mean / control_df$mean
-}
+HFSC_for_dds <- data.frame(ensgene = rownames(HFSC_df))
+HFSC_for_dds[,seq(2, ncol(HFSC_df) + 1)] <- HFSC_df
+head(HFSC_for_dds)
+```
+
+
+```{r}
+HFSC_for_dds <- data.frame(ensgene = rownames(HFSC_df))
+HFSC_for_dds[,seq(2, ncol(HFSC_df) + 1)] <- HFSC_df
+head(HFSC_for_dds)
+
+DP_for_dds <- data.frame(ensgene = rownames(DP_df))
+DP_for_dds[,seq(2, ncol(DP_df) + 1)] <- DP_df
+head(DP_for_dds)
+```
+
+```{r}
+meta_col <- c('geo_accession','source_name_ch1', 'source_name_ch1', 'geo_accession')
+meta_Data <- meta_data[,meta_col]
+colnames(meta_Data) <- c("id", "dex", "celltype","geo_id")
+meta_Data$dex <- as.factor(meta_Data$dex)
+```
+
+
+```{r}
+ctrl = 'Sham_DP'
+test = 'ADX_DP'
+
+# meta_Data를 티용해서 meta_using; ctrl, test 모아오기
+meta_using <- meta_Data[meta_Data$dex %in% c(ctrl, test), ]
+meta_using$dex <- ifelse(meta_using$dex == ctrl, 'control','treated')
+
+# 만든 meta_using에서 match이용해서 count_using만들기
+count_using <- DP_for_dds[c('ensgene', meta_using$id)]
+
+dds <- DESeqDataSetFromMatrix(countData=count_using, 
+                              colData=meta_using, 
+                              design=~dex, tidy = TRUE)
 ```
 
 
